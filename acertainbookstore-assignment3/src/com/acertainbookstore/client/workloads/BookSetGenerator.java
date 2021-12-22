@@ -1,7 +1,10 @@
 package com.acertainbookstore.client.workloads;
 
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
+import com.acertainbookstore.business.ImmutableStockBook;
 import com.acertainbookstore.business.StockBook;
 
 /**
@@ -9,29 +12,48 @@ import com.acertainbookstore.business.StockBook;
  * class
  */
 public class BookSetGenerator {
+	private static Integer ISBN = 1;
+	private Random random;
+	private boolean randomISBN;
+	private NameGenerator nameGenerator;
 
-	public BookSetGenerator() {
-		// TODO Auto-generated constructor stub
+	public BookSetGenerator(boolean randomISBN) {
+		this.random = new Random();
+		this.randomISBN = randomISBN;
+		this.nameGenerator = new NameGenerator();
 	}
 
-	/**
-	 * Returns num randomly selected isbns from the input set
-	 * 
-	 * @param num
-	 * @return
-	 */
-	public Set<Integer> sampleFromSetOfISBNs(Set<Integer> isbns, int num) {
-		return null;
+	public Set<Integer> sampleFromSetOfISBNs(Set<Integer> isbns, int n) {
+		List<Integer> l = new ArrayList<>(isbns);
+		Collections.shuffle(l, new Random());
+		return l.stream().limit(n).collect(Collectors.toSet());
 	}
 
-	/**
-	 * Return num stock books. For now return an ImmutableStockBook
-	 * 
-	 * @param num
-	 * @return
-	 */
 	public Set<StockBook> nextSetOfStockBooks(int num) {
-		return null;
+		Set<StockBook> result = new HashSet<>();
+		IntStream.rangeClosed(1, num).forEach(i -> result.add(createRandomBook()));
+		return result;
 	}
 
+	public Integer getISBN() {
+		return ISBN++;
+	}
+
+	private Integer getISBNRandomly() {
+		return random.ints(1, 1, 5000).findAny().getAsInt();
+	}
+
+	private ImmutableStockBook createRandomBook() {
+		int isbn = randomISBN ? getISBNRandomly() : getISBN();
+		String title = nameGenerator.createName();
+		String author = nameGenerator.createName();
+		float price = random.nextFloat() * 100f;
+		int numCopies = random.ints(1, 1, 1000).findAny().getAsInt();
+		long numSaleMisses = random.longs(1, 0L, 100L).findAny().getAsLong();
+		long numTimesRated = random.longs(1, 0L, 1000L).findAny().getAsLong();
+		long totalRating = random.longs(1, 0L, 5L).findAny().getAsLong();
+		boolean editorPick = random.nextBoolean();
+		return new ImmutableStockBook(isbn, title, author, price, numCopies, numSaleMisses,
+				numTimesRated, totalRating, editorPick);
+	}
 }

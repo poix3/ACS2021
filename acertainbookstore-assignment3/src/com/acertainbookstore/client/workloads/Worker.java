@@ -3,9 +3,15 @@
  */
 package com.acertainbookstore.client.workloads;
 
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.stream.Collectors;
 
+import com.acertainbookstore.business.Book;
+import com.acertainbookstore.business.BookCopy;
+import com.acertainbookstore.business.StockBook;
+import com.acertainbookstore.interfaces.BookStore;
+import com.acertainbookstore.interfaces.StockManager;
 import com.acertainbookstore.utils.BookStoreException;
 
 /**
@@ -92,31 +98,73 @@ public class Worker implements Callable<WorkerRunResult> {
 		numSuccessfulFrequentBookStoreInteraction, numTotalFrequentBookStoreInteraction);
     }
 
-    /**
-     * Runs the new stock acquisition interaction
-     * 
-     * @throws BookStoreException
-     */
-    private void runRareStockManagerInteraction() throws BookStoreException {
-	// TODO: Add code for New Stock Acquisition Interaction
-    }
+	/**
+	 * Runs the new stock acquisition interaction
+	 *
+	 * @throws BookStoreException
+	 */
+	private void runRareStockManagerInteraction() throws BookStoreException {
+		StockManager stockManager = configuration.getStockManager();
+		BookSetGenerator bookSetGenerator = configuration.getBookSetGenerator();
 
-    /**
-     * Runs the stock replenishment interaction
-     * 
-     * @throws BookStoreException
-     */
-    private void runFrequentStockManagerInteraction() throws BookStoreException {
-	// TODO: Add code for Stock Replenishment Interaction
-    }
+		List<StockBook> stockBookList = stockManager.getBooks();
+		// get stockBooks' isbns
+		List<Integer> booksListIsbns = stockBookList.stream().map(Book::getISBN).collect(Collectors.toList());
 
-    /**
-     * Runs the customer interaction
-     * 
-     * @throws BookStoreException
-     */
-    private void runFrequentBookStoreInteraction() throws BookStoreException {
-	// TODO: Add code for Customer Interaction
-    }
+		// get a random set of books
+		Set<StockBook> randomBooks = bookSetGenerator.nextSetOfStockBooks(configuration.getNumBooksToAdd());
+		List<StockBook> booksToAddList = new ArrayList<StockBook> (randomBooks);
+
+		// check if the set of ISBNs is in the list of books fetched
+		Set<StockBook> missedBooks = booksToAddList.stream().filter(book -> !booksListIsbns.contains(book.getISBN()))
+				.collect(Collectors.toSet());
+
+		stockManager.addBooks(missedBooks);
+	}
+
+	/**
+	 * Runs the stock replenishment interaction
+	 *
+	 * @throws BookStoreException
+	 */
+	private void runFrequentStockManagerInteraction() throws BookStoreException {
+		StockManager stockManager = configuration.getStockManager();
+		// the smallest quantities in stock
+		int numberOfLeastCopies = configuration.getNumBooksWithLeastCopies();
+		int numberOfCopiesToAdd = configuration.getNumAddCopies();
+		// set of bookCopies need to be added
+		Set<BookCopy> bookCopiesToAdd = new HashSet<>();
+
+		List<StockBook> stockBookList = stockManager.getBooks();
+
+		// get the bookCopiesToAdd
+		stockBookList.stream().sorted(Comparator.comparing(StockBook::getNumCopies).reversed())
+				.limit(numberOfLeastCopies).forEach(stockBook -> bookCopiesToAdd
+						.add(new BookCopy(stockBook.getISBN(), numberOfCopiesToAdd)));
+
+		stockManager.addCopies(bookCopiesToAdd);
+	}
+
+	/**
+	 * Runs the customer interaction
+	 *
+	 * @throws BookStoreException
+	 */
+	private void runFrequentBookStoreInteraction() throws BookStoreException {
+		BookStore bookStore = configuration.getBookStore();
+		BookSetGenerator bookSetGenerator = configuration.getBookSetGenerator();
+		int numberOfEditorPicks = configuration.getNumEditorPicksToGet();
+
+		// get some editorPicks books
+		List<Book> editorPicksBooks = bookStore.getEditorPicks(numberOfEditorPicks);
+		Set<Integer> booksISBN = editorPicksBooks.stream().map(Book::getISBN).collect(Collectors.toSet());
+
+		Set<BookCopy> booksToBuy = new HashSet<>();
+		Set<Integer> subSetOfPicksBooks = bookSetGenerator.sampleFromSetOfISBNs(booksISBN, configuration.getNumBooksToBuy());
+		// get books to buy
+		subSetOfPicksBooks.forEach(isbn -> booksToBuy.add(new BookCopy(isbn, configuration.getNumBookCopiesToBuy())));
+
+		bookStore.buyBooks(booksToBuy);
+	}
 
 }
